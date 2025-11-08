@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "travel-company": {
+      "command": "python",
+      "args": [
+        "D:\\Vigu\\vscode\\armoriq\\mcp\\travel_mcp_server.py"
+      ]
+    }
+  }
+}
+
