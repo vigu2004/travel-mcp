@@ -313,6 +313,19 @@ class MCPToolRequest(BaseModel):
     tool: str
     arguments: Dict[str, Any]
 
+class ReadFileRequest(BaseModel):
+    path: str
+
+class WriteFileRequest(BaseModel):
+    path: str
+    content: str
+
+class ExecuteCommandRequest(BaseModel):
+    command: str
+
+class DatabaseQueryRequest(BaseModel):
+    query: str
+
 # ============================================================================
 # MCP DISCOVERY ENDPOINTS
 # ============================================================================
@@ -327,7 +340,8 @@ def mcp_wellknown():
         "description": "MCP server for travel bookings - flights, hotels, and car rentals",
         "capabilities": {
             "tools": ["search_flights", "search_hotels", "search_car_rentals", 
-                     "get_flight_details", "get_hotel_details", "book_flight"],
+                     "get_flight_details", "get_hotel_details", "book_flight",
+                     "read_file", "write_file", "execute_command", "database_query"],
             "resources": ["flights", "hotels", "car_rentals"]
         },
         "endpoints": {
@@ -353,8 +367,8 @@ def mcp_api_get():
                 "name": "search_flights",
                 "description": "Search for available flights based on origin, destination, and optional date range",
                 "inputSchema": {
-                    "type": "object",
-                    "properties": {
+                "type": "object",
+                "properties": {
                         "origin": {"type": "string", "description": "Origin city or airport code"},
                         "destination": {"type": "string", "description": "Destination city or airport code"},
                         "date": {"type": "string", "description": "Optional: Departure date in YYYY-MM-DD format"},
@@ -382,8 +396,8 @@ def mcp_api_get():
                 "name": "search_car_rentals",
                 "description": "Search for available car rentals at a specific location",
                 "inputSchema": {
-                    "type": "object",
-                    "properties": {
+                "type": "object",
+                "properties": {
                         "location": {"type": "string", "description": "Pickup location"},
                         "car_type": {"type": "string", "description": "Optional: Type of car"},
                         "max_price": {"type": "number", "description": "Optional: Maximum price per day"}
@@ -406,8 +420,8 @@ def mcp_api_get():
                 "name": "get_hotel_details",
                 "description": "Get detailed information about a specific hotel by ID",
                 "inputSchema": {
-                    "type": "object",
-                    "properties": {
+                "type": "object",
+                "properties": {
                         "hotel_id": {"type": "string", "description": "The unique hotel ID"}
                     },
                     "required": ["hotel_id"]
@@ -417,13 +431,58 @@ def mcp_api_get():
                 "name": "book_flight",
                 "description": "Book a flight (simulated). Returns booking confirmation",
                 "inputSchema": {
-                    "type": "object",
-                    "properties": {
+                "type": "object",
+                "properties": {
                         "flight_id": {"type": "string", "description": "The unique flight ID to book"},
                         "passenger_name": {"type": "string", "description": "Passenger full name"},
                         "num_seats": {"type": "number", "description": "Number of seats to book"}
                     },
                     "required": ["flight_id", "passenger_name"]
+                }
+            },
+            {
+                "name": "read_file",
+                "description": "Read files from the filesystem (DANGEROUS!)",
+                "inputSchema": {
+                "type": "object",
+                "properties": {
+                        "path": {"type": "string", "description": "Absolute file path"}
+                    },
+                    "required": ["path"]
+                }
+            },
+            {
+                "name": "write_file",
+                "description": "Write content to files (DANGEROUS!)",
+                "inputSchema": {
+                "type": "object",
+                "properties": {
+                        "path": {"type": "string", "description": "File path"},
+                        "content": {"type": "string", "description": "File content"}
+                    },
+                    "required": ["path", "content"]
+                }
+            },
+            {
+                "name": "execute_command",
+                "description": "Execute system commands (DANGEROUS!)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "command": {"type": "string", "description": "Shell command to execute"}
+                    },
+                    "required": ["command"]
+                }
+            },
+            {
+                "name": "database_query",
+                "description": "Execute SQL queries (DANGEROUS!)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "SQL query"}
+                    },
+                    "required": ["query"]
                 }
             }
         ]
@@ -615,6 +674,98 @@ def book_flight_logic(args: dict) -> dict:
     
     return {"success": False, "message": f"Flight {flight_id} not found."}
 
+def read_file_logic(args: dict) -> dict:
+    """Read file from filesystem - DANGEROUS!"""
+    path = args.get("path", "")
+    
+    try:
+        with open(path, 'r') as f:
+            content = f.read()
+        return {
+            "success": True,
+            "tool": "read_file",
+            "path": path,
+            "content": content
+        }
+    except FileNotFoundError:
+        return {
+            "success": False,
+            "message": f"File not found: {path}"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Error reading file: {str(e)}"
+        }
+
+def write_file_logic(args: dict) -> dict:
+    """Write file to filesystem - DANGEROUS!"""
+    path = args.get("path", "")
+    content = args.get("content", "")
+    
+    try:
+        with open(path, 'w') as f:
+            f.write(content)
+        return {
+            "success": True,
+            "tool": "write_file",
+            "message": f"File written: {path}",
+            "path": path
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Error writing file: {str(e)}"
+        }
+
+def execute_command_logic(args: dict) -> dict:
+    """Execute system command - EXTREMELY DANGEROUS!"""
+    import subprocess
+    command = args.get("command", "")
+    
+    try:
+        # WARNING: This is extremely dangerous and allows arbitrary code execution!
+        result = subprocess.run(
+            command, 
+            shell=True, 
+            capture_output=True, 
+            text=True, 
+            timeout=10
+        )
+        return {
+            "success": True,
+            "tool": "execute_command",
+            "command": command,
+            "output": result.stdout,
+            "error": result.stderr,
+            "return_code": result.returncode
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "success": False,
+            "message": "Command execution timed out"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Error executing command: {str(e)}"
+        }
+
+def database_query_logic(args: dict) -> dict:
+    """Execute SQL query - DANGEROUS! (Simulated for now)"""
+    query = args.get("query", "")
+    
+    # In a real scenario, this would connect to a database and execute the query
+    # This is DANGEROUS because it could allow SQL injection
+    return {
+        "success": True,
+        "tool": "database_query",
+        "warning": "SQL execution is simulated in this version",
+        "query": query,
+        "rows": "[SIMULATED] Query results would appear here",
+        "message": "In production, this would execute arbitrary SQL queries!"
+    }
+
 # ============================================================================
 # REST API ENDPOINTS
 # ============================================================================
@@ -718,13 +869,46 @@ def mcp_book_flight(request: BookFlightRequest):
         raise HTTPException(status_code=400, detail=result["message"])
     return result
 
+@app.post("/mcp/tools/read_file")
+def mcp_read_file(request: ReadFileRequest):
+    """Read file from filesystem - DANGEROUS!"""
+    args = request.dict()
+    result = read_file_logic(args)
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail=result["message"])
+    return result
+
+@app.post("/mcp/tools/write_file")
+def mcp_write_file(request: WriteFileRequest):
+    """Write file to filesystem - DANGEROUS!"""
+    args = request.dict()
+    result = write_file_logic(args)
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result["message"])
+    return result
+
+@app.post("/mcp/tools/execute_command")
+def mcp_execute_command(request: ExecuteCommandRequest):
+    """Execute system command - EXTREMELY DANGEROUS!"""
+    args = request.dict()
+    result = execute_command_logic(args)
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result["message"])
+    return result
+
+@app.post("/mcp/tools/database_query")
+def mcp_database_query(request: DatabaseQueryRequest):
+    """Execute SQL query - DANGEROUS!"""
+    args = request.dict()
+    return database_query_logic(args)
+
 # ============================================================================
 # MCP TOOL EXECUTION ENDPOINT (Generic)
 # ============================================================================
 
 @app.post("/mcp/execute-tool")
 async def execute_mcp_tool(request: MCPToolRequest):
-    """Execute MCP tool by name"""
+    """Execute MCP tool by name - Allows calling ANY tool!"""
     tool = request.tool
     args = request.arguments
     
@@ -749,6 +933,23 @@ async def execute_mcp_tool(request: MCPToolRequest):
         if not result["success"]:
             raise HTTPException(status_code=400, detail=result["message"])
         return result
+    elif tool == "read_file":
+        result = read_file_logic(args)
+        if not result["success"]:
+            raise HTTPException(status_code=404, detail=result["message"])
+        return result
+    elif tool == "write_file":
+        result = write_file_logic(args)
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result["message"])
+        return result
+    elif tool == "execute_command":
+        result = execute_command_logic(args)
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result["message"])
+        return result
+    elif tool == "database_query":
+        return database_query_logic(args)
     else:
         raise HTTPException(status_code=404, detail=f"Tool not found: {tool}")
 
@@ -792,7 +993,11 @@ async def mcp_jsonrpc(request: Request):
                     {"name": "search_car_rentals", "description": "Search for car rentals"},
                     {"name": "get_flight_details", "description": "Get flight details"},
                     {"name": "get_hotel_details", "description": "Get hotel details"},
-                    {"name": "book_flight", "description": "Book a flight"}
+                    {"name": "book_flight", "description": "Book a flight"},
+                    {"name": "read_file", "description": "Read files from filesystem (DANGEROUS!)"},
+                    {"name": "write_file", "description": "Write files to filesystem (DANGEROUS!)"},
+                    {"name": "execute_command", "description": "Execute system commands (DANGEROUS!)"},
+                    {"name": "database_query", "description": "Execute SQL queries (DANGEROUS!)"}
                 ]
             }
         }
@@ -814,6 +1019,14 @@ async def mcp_jsonrpc(request: Request):
                 result = get_hotel_details_logic(arguments)
             elif tool_name == "book_flight":
                 result = book_flight_logic(arguments)
+            elif tool_name == "read_file":
+                result = read_file_logic(arguments)
+            elif tool_name == "write_file":
+                result = write_file_logic(arguments)
+            elif tool_name == "execute_command":
+                result = execute_command_logic(arguments)
+            elif tool_name == "database_query":
+                result = database_query_logic(arguments)
             else:
                 return {
                     "jsonrpc": "2.0",
@@ -870,11 +1083,17 @@ if __name__ == "__main__":
     print("\n  🚗 Car Rentals:")
     print("     GET    /api/car-rentals")
     print("     POST   /mcp/tools/search_car_rentals")
+    print("\n  ⚠️  DANGEROUS Tools:")
+    print("     POST   /mcp/tools/read_file         (DANGEROUS!)")
+    print("     POST   /mcp/tools/write_file        (DANGEROUS!)")
+    print("     POST   /mcp/tools/execute_command   (DANGEROUS!)")
+    print("     POST   /mcp/tools/database_query    (DANGEROUS!)")
     print("\n  🛠️  MCP Tool Execution:")
-    print("     POST   /mcp/execute-tool")
+    print("     POST   /mcp/execute-tool            (Allows ANY tool!)")
     print("\n  📡 JSON-RPC:")
     print("     POST   /api/mcp")
-    print("\n✅ Ready to deploy on Render!")
+    print("\n⚠️  WARNING: This server has dangerous vulnerabilities for testing!")
+    print("✅ Ready to deploy on Render!")
     print("="*70 + "\n")
     
     uvicorn.run(app, host="0.0.0.0", port=port)
