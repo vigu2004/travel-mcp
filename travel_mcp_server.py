@@ -276,6 +276,13 @@ CAR_RENTALS_DATA = [
     }
 ]
 
+# In-memory files database (for simulated file operations)
+FILES_DB = {
+    "/home/travel/bookings.txt": {"content": "Flight bookings data", "owner": "travel"},
+    "/home/travel/hotels.txt": {"content": "Hotel bookings data", "owner": "travel"},
+    "/etc/config": {"content": "System configuration", "owner": "root"},
+}
+
 # ============================================================================
 # PYDANTIC MODELS
 # ============================================================================
@@ -675,95 +682,65 @@ def book_flight_logic(args: dict) -> dict:
     return {"success": False, "message": f"Flight {flight_id} not found."}
 
 def read_file_logic(args: dict) -> dict:
-    """Read file from filesystem - DANGEROUS!"""
+    """Read file from filesystem - DANGEROUS! (Simulated)"""
     path = args.get("path", "")
     
-    try:
-        with open(path, 'r') as f:
-            content = f.read()
-        return {
-            "success": True,
-            "tool": "read_file",
-            "path": path,
-            "content": content
-        }
-    except FileNotFoundError:
+    if path not in FILES_DB:
         return {
             "success": False,
             "message": f"File not found: {path}"
         }
-    except Exception as e:
-        return {
-            "success": False,
-            "message": f"Error reading file: {str(e)}"
-        }
+    
+    file_info = FILES_DB[path]
+    return {
+        "success": True,
+        "tool": "read_file",
+        "path": path,
+        "content": file_info["content"],
+        "owner": file_info["owner"]
+    }
 
 def write_file_logic(args: dict) -> dict:
-    """Write file to filesystem - DANGEROUS!"""
+    """Write file to filesystem - DANGEROUS! (Simulated)"""
     path = args.get("path", "")
     content = args.get("content", "")
     
-    try:
-        with open(path, 'w') as f:
-            f.write(content)
-        return {
-            "success": True,
-            "tool": "write_file",
-            "message": f"File written: {path}",
-            "path": path
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "message": f"Error writing file: {str(e)}"
-        }
+    FILES_DB[path] = {
+        "content": content,
+        "owner": "system"
+    }
+    
+    return {
+        "success": True,
+        "tool": "write_file",
+        "message": f"File written: {path}",
+        "path": path
+    }
 
 def execute_command_logic(args: dict) -> dict:
-    """Execute system command - EXTREMELY DANGEROUS!"""
-    import subprocess
+    """Execute system command - DANGEROUS! (Simulated)"""
     command = args.get("command", "")
     
-    try:
-        # WARNING: This is extremely dangerous and allows arbitrary code execution!
-        result = subprocess.run(
-            command, 
-            shell=True, 
-            capture_output=True, 
-            text=True, 
-            timeout=10
-        )
-        return {
-            "success": True,
-            "tool": "execute_command",
-            "command": command,
-            "output": result.stdout,
-            "error": result.stderr,
-            "return_code": result.returncode
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "message": "Command execution timed out"
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "message": f"Error executing command: {str(e)}"
-        }
+    # DANGEROUS: This would execute arbitrary commands
+    return {
+        "success": True,
+        "tool": "execute_command",
+        "warning": "Command execution is disabled in mock mode",
+        "command": command,
+        "output": "[SIMULATED] Command would be executed here"
+    }
 
 def database_query_logic(args: dict) -> dict:
-    """Execute SQL query - DANGEROUS! (Simulated for now)"""
+    """Execute SQL query - DANGEROUS! (Simulated)"""
     query = args.get("query", "")
     
-    # In a real scenario, this would connect to a database and execute the query
-    # This is DANGEROUS because it could allow SQL injection
+    # DANGEROUS: This would execute arbitrary SQL
     return {
         "success": True,
         "tool": "database_query",
-        "warning": "SQL execution is simulated in this version",
+        "warning": "Direct SQL execution is disabled in mock mode",
         "query": query,
-        "rows": "[SIMULATED] Query results would appear here",
-        "message": "In production, this would execute arbitrary SQL queries!"
+        "rows": "[SIMULATED] Query results would appear here"
     }
 
 # ============================================================================
