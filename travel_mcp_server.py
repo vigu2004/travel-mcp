@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 """
-Travel Company MCP Server
+Travel Company MCP Server (FastAPI Version)
 Provides in-memory travel data including flights, hotels, and car rentals.
+Deployable as a web service on Render or similar platforms.
 """
 
-import asyncio
-import logging
+from fastapi import FastAPI, Request, HTTPException
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
+import uvicorn
 from datetime import datetime, timedelta
-from typing import Any, Optional
-from mcp.server.models import InitializationOptions
-import mcp.types as types
-from mcp.server import NotificationOptions, Server
-import mcp.server.stdio
+import logging
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("travel-mcp-server")
+
+# Create FastAPI app
+app = FastAPI(title="Travel Company MCP Server")
 
 # In-memory data storage
 FLIGHTS_DATA = [
@@ -273,177 +276,169 @@ CAR_RENTALS_DATA = [
     }
 ]
 
-# Create server instance
-server = Server("travel-company-mcp")
+# ============================================================================
+# PYDANTIC MODELS
+# ============================================================================
 
-@server.list_tools()
-async def handle_list_tools() -> list[types.Tool]:
-    """
-    List available tools for the travel MCP server.
-    """
-    return [
-        types.Tool(
-            name="search_flights",
-            description="Search for available flights based on origin, destination, and optional date range. Returns flight details including price, times, and availability.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "origin": {
-                        "type": "string",
-                        "description": "Origin city or airport code (e.g., 'New York', 'JFK')"
-                    },
-                    "destination": {
-                        "type": "string",
-                        "description": "Destination city or airport code (e.g., 'London', 'LHR')"
-                    },
-                    "date": {
-                        "type": "string",
-                        "description": "Optional: Departure date in YYYY-MM-DD format"
-                    },
-                    "class": {
-                        "type": "string",
-                        "description": "Optional: Cabin class (Economy, Business, First)",
-                        "enum": ["Economy", "Business", "First"]
-                    }
-                },
-                "required": ["origin", "destination"]
-            }
-        ),
-        types.Tool(
-            name="search_hotels",
-            description="Search for available hotels in a specific location. Returns hotel details including price, amenities, and availability.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "location": {
-                        "type": "string",
-                        "description": "City or location name (e.g., 'London', 'Tokyo')"
-                    },
-                    "check_in": {
-                        "type": "string",
-                        "description": "Optional: Check-in date in YYYY-MM-DD format"
-                    },
-                    "check_out": {
-                        "type": "string",
-                        "description": "Optional: Check-out date in YYYY-MM-DD format"
-                    },
-                    "min_rating": {
-                        "type": "number",
-                        "description": "Optional: Minimum star rating (1-5)"
-                    },
-                    "max_price": {
-                        "type": "number",
-                        "description": "Optional: Maximum price per night in USD"
-                    }
-                },
-                "required": ["location"]
-            }
-        ),
-        types.Tool(
-            name="search_car_rentals",
-            description="Search for available car rentals at a specific location. Returns car details including model, type, price, and features.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "location": {
-                        "type": "string",
-                        "description": "Pickup location (e.g., 'London Heathrow Airport', 'Tokyo')"
-                    },
-                    "car_type": {
-                        "type": "string",
-                        "description": "Optional: Type of car (Sedan, SUV, Compact, Luxury Sedan, Hatchback)"
-                    },
-                    "max_price": {
-                        "type": "number",
-                        "description": "Optional: Maximum price per day in USD"
-                    }
-                },
-                "required": ["location"]
-            }
-        ),
-        types.Tool(
-            name="get_flight_details",
-            description="Get detailed information about a specific flight by flight ID.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "flight_id": {
-                        "type": "string",
-                        "description": "The unique flight ID (e.g., 'FL001')"
-                    }
-                },
-                "required": ["flight_id"]
-            }
-        ),
-        types.Tool(
-            name="get_hotel_details",
-            description="Get detailed information about a specific hotel by hotel ID.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "hotel_id": {
-                        "type": "string",
-                        "description": "The unique hotel ID (e.g., 'HTL001')"
-                    }
-                },
-                "required": ["hotel_id"]
-            }
-        ),
-        types.Tool(
-            name="book_flight",
-            description="Book a flight (simulated). Returns booking confirmation.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "flight_id": {
-                        "type": "string",
-                        "description": "The unique flight ID to book"
-                    },
-                    "passenger_name": {
-                        "type": "string",
-                        "description": "Passenger full name"
-                    },
-                    "num_seats": {
-                        "type": "number",
-                        "description": "Number of seats to book (default: 1)"
-                    }
-                },
-                "required": ["flight_id", "passenger_name"]
-            }
-        )
-    ]
+class SearchFlightsRequest(BaseModel):
+    origin: str
+    destination: str
+    date: Optional[str] = None
+    cabin_class: Optional[str] = None
 
-@server.call_tool()
-async def handle_call_tool(
-    name: str, arguments: dict | None
-) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
-    """
-    Handle tool execution requests.
-    """
-    if not arguments:
-        arguments = {}
-    
-    if name == "search_flights":
-        return await search_flights(arguments)
-    elif name == "search_hotels":
-        return await search_hotels(arguments)
-    elif name == "search_car_rentals":
-        return await search_car_rentals(arguments)
-    elif name == "get_flight_details":
-        return await get_flight_details(arguments)
-    elif name == "get_hotel_details":
-        return await get_hotel_details(arguments)
-    elif name == "book_flight":
-        return await book_flight(arguments)
-    else:
-        raise ValueError(f"Unknown tool: {name}")
+class SearchHotelsRequest(BaseModel):
+    location: str
+    check_in: Optional[str] = None
+    check_out: Optional[str] = None
+    min_rating: Optional[int] = None
+    max_price: Optional[float] = None
 
-async def search_flights(args: dict) -> list[types.TextContent]:
+class SearchCarRentalsRequest(BaseModel):
+    location: str
+    car_type: Optional[str] = None
+    max_price: Optional[float] = None
+
+class GetFlightDetailsRequest(BaseModel):
+    flight_id: str
+
+class GetHotelDetailsRequest(BaseModel):
+    hotel_id: str
+
+class BookFlightRequest(BaseModel):
+    flight_id: str
+    passenger_name: str
+    num_seats: Optional[int] = 1
+
+class MCPToolRequest(BaseModel):
+    tool: str
+    arguments: Dict[str, Any]
+
+# ============================================================================
+# MCP DISCOVERY ENDPOINTS
+# ============================================================================
+
+@app.get("/.well-known/mcp.json")
+def mcp_wellknown():
+    """MCP discovery endpoint"""
+    return {
+        "protocol": "mcp",
+        "version": "1.0.0",
+        "name": "Travel Company MCP Server",
+        "description": "MCP server for travel bookings - flights, hotels, and car rentals",
+        "capabilities": {
+            "tools": ["search_flights", "search_hotels", "search_car_rentals", 
+                     "get_flight_details", "get_hotel_details", "book_flight"],
+            "resources": ["flights", "hotels", "car_rentals"]
+        },
+        "endpoints": {
+            "flights": "/api/flights",
+            "hotels": "/api/hotels",
+            "car_rentals": "/api/car-rentals",
+            "mcp_tools": "/mcp/execute-tool",
+            "jsonrpc": "/api/mcp"
+        }
+    }
+
+@app.get("/api/mcp")
+def mcp_api_get():
+    """Get MCP server information (GET method)"""
+    return {
+        "serverInfo": {
+            "name": "travel-company-mcp",
+            "version": "1.0.0",
+            "description": "Travel booking server with flights, hotels, and car rentals"
+        },
+        "tools": [
+            {
+                "name": "search_flights",
+                "description": "Search for available flights based on origin, destination, and optional date range",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "origin": {"type": "string", "description": "Origin city or airport code"},
+                        "destination": {"type": "string", "description": "Destination city or airport code"},
+                        "date": {"type": "string", "description": "Optional: Departure date in YYYY-MM-DD format"},
+                        "cabin_class": {"type": "string", "description": "Optional: Cabin class (Economy, Business, First)"}
+                    },
+                    "required": ["origin", "destination"]
+                }
+            },
+            {
+                "name": "search_hotels",
+                "description": "Search for available hotels in a specific location",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "location": {"type": "string", "description": "City or location name"},
+                        "check_in": {"type": "string", "description": "Optional: Check-in date"},
+                        "check_out": {"type": "string", "description": "Optional: Check-out date"},
+                        "min_rating": {"type": "number", "description": "Optional: Minimum star rating"},
+                        "max_price": {"type": "number", "description": "Optional: Maximum price per night"}
+                    },
+                    "required": ["location"]
+                }
+            },
+            {
+                "name": "search_car_rentals",
+                "description": "Search for available car rentals at a specific location",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "location": {"type": "string", "description": "Pickup location"},
+                        "car_type": {"type": "string", "description": "Optional: Type of car"},
+                        "max_price": {"type": "number", "description": "Optional: Maximum price per day"}
+                    },
+                    "required": ["location"]
+                }
+            },
+            {
+                "name": "get_flight_details",
+                "description": "Get detailed information about a specific flight by ID",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "flight_id": {"type": "string", "description": "The unique flight ID"}
+                    },
+                    "required": ["flight_id"]
+                }
+            },
+            {
+                "name": "get_hotel_details",
+                "description": "Get detailed information about a specific hotel by ID",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "hotel_id": {"type": "string", "description": "The unique hotel ID"}
+                    },
+                    "required": ["hotel_id"]
+                }
+            },
+            {
+                "name": "book_flight",
+                "description": "Book a flight (simulated). Returns booking confirmation",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "flight_id": {"type": "string", "description": "The unique flight ID to book"},
+                        "passenger_name": {"type": "string", "description": "Passenger full name"},
+                        "num_seats": {"type": "number", "description": "Number of seats to book"}
+                    },
+                    "required": ["flight_id", "passenger_name"]
+                }
+            }
+        ]
+    }
+
+# ============================================================================
+# BUSINESS LOGIC FUNCTIONS
+# ============================================================================
+
+def search_flights_logic(args: dict) -> dict:
     """Search for flights based on criteria."""
     origin = args.get("origin", "").lower()
     destination = args.get("destination", "").lower()
     date = args.get("date")
-    cabin_class = args.get("class")
+    cabin_class = args.get("cabin_class") or args.get("class")
     
     results = []
     for flight in FLIGHTS_DATA:
@@ -474,9 +469,9 @@ async def search_flights(args: dict) -> list[types.TextContent]:
     else:
         response = f"No flights found from {origin} to {destination} matching your criteria."
     
-    return [types.TextContent(type="text", text=response)]
+    return {"success": True, "count": len(results), "message": response, "flights": results}
 
-async def search_hotels(args: dict) -> list[types.TextContent]:
+def search_hotels_logic(args: dict) -> dict:
     """Search for hotels based on criteria."""
     location = args.get("location", "").lower()
     min_rating = args.get("min_rating")
@@ -506,9 +501,9 @@ async def search_hotels(args: dict) -> list[types.TextContent]:
     else:
         response = f"No hotels found in {location} matching your criteria."
     
-    return [types.TextContent(type="text", text=response)]
+    return {"success": True, "count": len(results), "message": response, "hotels": results}
 
-async def search_car_rentals(args: dict) -> list[types.TextContent]:
+def search_car_rentals_logic(args: dict) -> dict:
     """Search for car rentals based on criteria."""
     location = args.get("location", "").lower()
     car_type = args.get("car_type")
@@ -538,9 +533,9 @@ async def search_car_rentals(args: dict) -> list[types.TextContent]:
     else:
         response = f"No car rentals found in {location} matching your criteria."
     
-    return [types.TextContent(type="text", text=response)]
+    return {"success": True, "count": len(results), "message": response, "car_rentals": results}
 
-async def get_flight_details(args: dict) -> list[types.TextContent]:
+def get_flight_details_logic(args: dict) -> dict:
     """Get detailed information about a specific flight."""
     flight_id = args.get("flight_id")
     
@@ -556,11 +551,11 @@ async def get_flight_details(args: dict) -> list[types.TextContent]:
             response += f"Class: {flight['class']}\n"
             response += f"Price: ${flight['price']:.2f} {flight['currency']}\n"
             response += f"Available Seats: {flight['available_seats']}\n"
-            return [types.TextContent(type="text", text=response)]
+            return {"success": True, "message": response, "flight": flight}
     
-    return [types.TextContent(type="text", text=f"Flight {flight_id} not found.")]
+    return {"success": False, "message": f"Flight {flight_id} not found."}
 
-async def get_hotel_details(args: dict) -> list[types.TextContent]:
+def get_hotel_details_logic(args: dict) -> dict:
     """Get detailed information about a specific hotel."""
     hotel_id = args.get("hotel_id")
     
@@ -577,11 +572,11 @@ async def get_hotel_details(args: dict) -> list[types.TextContent]:
             response += f"Amenities: {', '.join(hotel['amenities'])}\n"
             response += f"Check-in: {hotel['check_in']}\n"
             response += f"Check-out: {hotel['check_out']}\n"
-            return [types.TextContent(type="text", text=response)]
+            return {"success": True, "message": response, "hotel": hotel}
     
-    return [types.TextContent(type="text", text=f"Hotel {hotel_id} not found.")]
+    return {"success": False, "message": f"Hotel {hotel_id} not found."}
 
-async def book_flight(args: dict) -> list[types.TextContent]:
+def book_flight_logic(args: dict) -> dict:
     """Simulate booking a flight."""
     flight_id = args.get("flight_id")
     passenger_name = args.get("passenger_name")
@@ -590,10 +585,10 @@ async def book_flight(args: dict) -> list[types.TextContent]:
     for flight in FLIGHTS_DATA:
         if flight["id"] == flight_id:
             if flight["available_seats"] < num_seats:
-                return [types.TextContent(
-                    type="text",
-                    text=f"Sorry, only {flight['available_seats']} seats available on flight {flight_id}."
-                )]
+                return {
+                    "success": False,
+                    "message": f"Sorry, only {flight['available_seats']} seats available on flight {flight_id}."
+                }
             
             # Simulate booking
             flight["available_seats"] -= num_seats
@@ -609,27 +604,278 @@ async def book_flight(args: dict) -> list[types.TextContent]:
             response += f"Total Price: ${flight['price'] * num_seats:.2f} {flight['currency']}\n"
             response += f"Remaining Seats: {flight['available_seats']}\n"
             
-            return [types.TextContent(type="text", text=response)]
+            return {
+                "success": True,
+                "message": response,
+                "booking_reference": booking_ref,
+                "flight": flight,
+                "passenger": passenger_name,
+                "seats": num_seats
+            }
     
-    return [types.TextContent(type="text", text=f"Flight {flight_id} not found.")]
+    return {"success": False, "message": f"Flight {flight_id} not found."}
 
-async def main():
-    """Run the MCP server using stdio transport."""
-    async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-        logger.info("Travel MCP Server starting...")
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="travel-company-mcp",
-                server_version="1.0.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
-                ),
-            ),
-        )
+# ============================================================================
+# REST API ENDPOINTS
+# ============================================================================
+
+@app.get("/")
+def root():
+    """Root endpoint"""
+    return {
+        "status": "ok",
+        "type": "mcp-server",
+        "name": "Travel Company MCP Server",
+        "version": "1.0.0",
+        "description": "Travel booking API with flights, hotels, and car rentals",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@app.get("/health")
+def health():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "flights_count": len(FLIGHTS_DATA),
+        "hotels_count": len(HOTELS_DATA),
+        "car_rentals_count": len(CAR_RENTALS_DATA),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@app.get("/api/flights")
+def list_flights():
+    """List all available flights"""
+    return {
+        "success": True,
+        "count": len(FLIGHTS_DATA),
+        "flights": FLIGHTS_DATA
+    }
+
+@app.get("/api/hotels")
+def list_hotels():
+    """List all available hotels"""
+    return {
+        "success": True,
+        "count": len(HOTELS_DATA),
+        "hotels": HOTELS_DATA
+    }
+
+@app.get("/api/car-rentals")
+def list_car_rentals():
+    """List all available car rentals"""
+    return {
+        "success": True,
+        "count": len(CAR_RENTALS_DATA),
+        "car_rentals": CAR_RENTALS_DATA
+    }
+
+# ============================================================================
+# MCP TOOL ENDPOINTS (Direct)
+# ============================================================================
+
+@app.post("/mcp/tools/search_flights")
+def mcp_search_flights(request: SearchFlightsRequest):
+    """Search for flights"""
+    args = request.dict(exclude_none=True)
+    return search_flights_logic(args)
+
+@app.post("/mcp/tools/search_hotels")
+def mcp_search_hotels(request: SearchHotelsRequest):
+    """Search for hotels"""
+    args = request.dict(exclude_none=True)
+    return search_hotels_logic(args)
+
+@app.post("/mcp/tools/search_car_rentals")
+def mcp_search_car_rentals(request: SearchCarRentalsRequest):
+    """Search for car rentals"""
+    args = request.dict(exclude_none=True)
+    return search_car_rentals_logic(args)
+
+@app.post("/mcp/tools/get_flight_details")
+def mcp_get_flight_details(request: GetFlightDetailsRequest):
+    """Get flight details"""
+    args = request.dict()
+    result = get_flight_details_logic(args)
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail=result["message"])
+    return result
+
+@app.post("/mcp/tools/get_hotel_details")
+def mcp_get_hotel_details(request: GetHotelDetailsRequest):
+    """Get hotel details"""
+    args = request.dict()
+    result = get_hotel_details_logic(args)
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail=result["message"])
+    return result
+
+@app.post("/mcp/tools/book_flight")
+def mcp_book_flight(request: BookFlightRequest):
+    """Book a flight"""
+    args = request.dict()
+    result = book_flight_logic(args)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
+
+# ============================================================================
+# MCP TOOL EXECUTION ENDPOINT (Generic)
+# ============================================================================
+
+@app.post("/mcp/execute-tool")
+async def execute_mcp_tool(request: MCPToolRequest):
+    """Execute MCP tool by name"""
+    tool = request.tool
+    args = request.arguments
+    
+    if tool == "search_flights":
+        return search_flights_logic(args)
+    elif tool == "search_hotels":
+        return search_hotels_logic(args)
+    elif tool == "search_car_rentals":
+        return search_car_rentals_logic(args)
+    elif tool == "get_flight_details":
+        result = get_flight_details_logic(args)
+        if not result["success"]:
+            raise HTTPException(status_code=404, detail=result["message"])
+        return result
+    elif tool == "get_hotel_details":
+        result = get_hotel_details_logic(args)
+        if not result["success"]:
+            raise HTTPException(status_code=404, detail=result["message"])
+        return result
+    elif tool == "book_flight":
+        result = book_flight_logic(args)
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["message"])
+        return result
+    else:
+        raise HTTPException(status_code=404, detail=f"Tool not found: {tool}")
+
+# ============================================================================
+# JSON-RPC ENDPOINT (Standard MCP Protocol)
+# ============================================================================
+
+@app.post("/api/mcp")
+async def mcp_jsonrpc(request: Request):
+    """Handle JSON-RPC 2.0 requests - Standard MCP protocol"""
+    body = await request.json()
+    method = body.get("method", "")
+    request_id = body.get("id", 1)
+    params = body.get("params", {})
+    
+    if method == "initialize":
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "serverInfo": {
+                    "name": "travel-company-mcp",
+                    "version": "1.0.0"
+                },
+                "capabilities": {
+                    "tools": {},
+                    "resources": {}
+                }
+            }
+        }
+    
+    elif method == "tools/list":
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "tools": [
+                    {"name": "search_flights", "description": "Search for available flights"},
+                    {"name": "search_hotels", "description": "Search for available hotels"},
+                    {"name": "search_car_rentals", "description": "Search for car rentals"},
+                    {"name": "get_flight_details", "description": "Get flight details"},
+                    {"name": "get_hotel_details", "description": "Get hotel details"},
+                    {"name": "book_flight", "description": "Book a flight"}
+                ]
+            }
+        }
+    
+    elif method == "tools/call":
+        tool_name = params.get("name", "")
+        arguments = params.get("arguments", {})
+        
+        try:
+            if tool_name == "search_flights":
+                result = search_flights_logic(arguments)
+            elif tool_name == "search_hotels":
+                result = search_hotels_logic(arguments)
+            elif tool_name == "search_car_rentals":
+                result = search_car_rentals_logic(arguments)
+            elif tool_name == "get_flight_details":
+                result = get_flight_details_logic(arguments)
+            elif tool_name == "get_hotel_details":
+                result = get_hotel_details_logic(arguments)
+            elif tool_name == "book_flight":
+                result = book_flight_logic(arguments)
+            else:
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {"code": -32601, "message": f"Tool not found: {tool_name}"}
+                }
+            
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": result
+            }
+        except Exception as e:
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {"code": -32603, "message": str(e)}
+            }
+    
+    else:
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {
+                "code": -32601,
+                "message": f"Method not found: {method}"
+            }
+        }
+
+# ============================================================================
+# MAIN
+# ============================================================================
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    port = int(os.getenv("PORT", 8000))
+    
+    print("\n" + "="*70)
+    print("🚀 TRAVEL COMPANY MCP SERVER")
+    print("="*70)
+    print(f"URL: http://localhost:{port}")
+    print("\n📋 Available Endpoints:")
+    print("\n  🔍 Discovery:")
+    print("     GET  /.well-known/mcp.json")
+    print("     GET  /api/mcp")
+    print("\n  ✈️  Flights:")
+    print("     GET    /api/flights")
+    print("     POST   /mcp/tools/search_flights")
+    print("     POST   /mcp/tools/get_flight_details")
+    print("     POST   /mcp/tools/book_flight")
+    print("\n  🏨 Hotels:")
+    print("     GET    /api/hotels")
+    print("     POST   /mcp/tools/search_hotels")
+    print("     POST   /mcp/tools/get_hotel_details")
+    print("\n  🚗 Car Rentals:")
+    print("     GET    /api/car-rentals")
+    print("     POST   /mcp/tools/search_car_rentals")
+    print("\n  🛠️  MCP Tool Execution:")
+    print("     POST   /mcp/execute-tool")
+    print("\n  📡 JSON-RPC:")
+    print("     POST   /api/mcp")
+    print("\n✅ Ready to deploy on Render!")
+    print("="*70 + "\n")
+    
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
