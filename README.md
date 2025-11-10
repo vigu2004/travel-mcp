@@ -1,6 +1,8 @@
-# Travel Company MCP Server
+# Travel Company MCP Server (With Intentional Vulnerabilities)
 
-A Model Context Protocol (MCP) server providing in-memory travel data for flights, hotels, and car rentals. Built using Anthropic's official MCP SDK.
+A Model Context Protocol (MCP) server providing in-memory travel data for flights, hotels, and car rentals. This server contains **intentional security vulnerabilities** for testing MCP security scanners and demonstrating common web application vulnerabilities.
+
+⚠️ **WARNING:** This server is intentionally vulnerable and should NEVER be used in production!
 
 ## Features
 
@@ -21,6 +23,8 @@ A Model Context Protocol (MCP) server providing in-memory travel data for flight
 
 ## Available Tools
 
+### Safe Travel Tools ✅
+
 1. **search_flights** - Search for available flights
    - Parameters: origin, destination, date (optional), class (optional)
    
@@ -39,6 +43,39 @@ A Model Context Protocol (MCP) server providing in-memory travel data for flight
 6. **book_flight** - Simulate flight booking
    - Parameters: flight_id, passenger_name, num_seats (optional)
 
+### Vulnerable Travel Tools ⚠️
+
+7. **calculate_trip_cost** - Calculate trip costs using formulas (CWE-94: eval injection)
+   - Parameters: base_price, calculation_formula
+   - Vulnerability: Uses `eval()` on user input
+
+8. **apply_discount_code** - Apply discount codes (CWE-94: eval injection)
+   - Parameters: price, discount_code
+   - Vulnerability: Evaluates discount codes as Python expressions
+
+9. **generate_booking_confirmation** - Generate confirmation messages (CWE-134: format string)
+   - Parameters: passenger_name, flight_id, template (optional)
+   - Vulnerability: Unsafe string formatting
+
+10. **search_booking_by_name** - Search bookings (CWE-89: SQL injection)
+    - Parameters: passenger_name
+    - Vulnerability: String concatenation in SQL queries
+
+11. **download_travel_document** - Download travel documents (CWE-22: path traversal)
+    - Parameters: document_path
+    - Vulnerability: No path validation
+
+12. **fetch_destination_info** - Fetch destination data from APIs (CWE-918: SSRF)
+    - Parameters: api_url
+    - Vulnerability: Unvalidated HTTP requests
+
+### Critical Dangerous Tools 🚨
+
+13. **read_file** - Read arbitrary files (CWE-22: path traversal)
+14. **write_file** - Write arbitrary files (CWE-73: arbitrary file write)
+15. **execute_command** - Execute system commands (CWE-78: command injection)
+16. **database_query** - Execute raw SQL queries (CWE-89: SQL injection)
+
 ## Installation
 
 1. Install Python 3.10 or higher
@@ -53,6 +90,34 @@ pip install -r requirements.txt
 ```bash
 python travel_mcp_server.py
 ```
+
+The server will start on `http://localhost:8000` by default.
+
+## Testing Vulnerabilities
+
+### Run Vulnerability Tests
+
+Test all vulnerable tools to ensure they work:
+
+```bash
+python test_vulnerabilities.py
+```
+
+This will test each vulnerable tool with sample inputs.
+
+### Security Scanner Testing
+
+This server is designed to test MCP security scanners. Your scanner should detect:
+
+- **CWE-22**: Path Traversal in `read_file`, `write_file`, `download_travel_document`
+- **CWE-73**: Arbitrary File Write in `write_file`
+- **CWE-78**: Command Injection in `execute_command`
+- **CWE-89**: SQL Injection in `database_query`, `search_booking_by_name`
+- **CWE-94**: Code Injection (eval) in `calculate_trip_cost`, `apply_discount_code`
+- **CWE-134**: Format String vulnerability in `generate_booking_confirmation`
+- **CWE-918**: SSRF in `fetch_destination_info`
+
+See `VULNERABILITIES.md` for detailed documentation of each vulnerability.
 
 ## Configuration for Claude Desktop
 

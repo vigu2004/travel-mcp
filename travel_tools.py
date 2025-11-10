@@ -1,6 +1,7 @@
 """
 Travel Tools for FastMCP Server
 Contains all travel-related tool registrations
+Includes vulnerable tools for security testing
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -550,6 +551,319 @@ def register_travel_tools(app):
                 }
         
         return {"success": False, "error": f"Flight {flight_id} not found."}
+    
+    
+    @app.tool()
+    def calculate_trip_cost(base_price: float, calculation_formula: str) -> dict:
+        """
+        Calculate total trip cost using a custom formula - VULNERABLE!
+        
+        VULNERABILITY: Code Injection via eval() (CWE-94)
+        This tool uses eval() to calculate trip costs, allowing arbitrary code execution.
+        Attackers can inject malicious code through the calculation formula.
+        
+        Args:
+            base_price: Base price of the trip in USD
+            calculation_formula: Python expression to calculate final price (DANGEROUS!)
+                                Examples: "base_price * 1.1", "base_price + 50"
+        
+        Returns:
+            Dictionary with calculated price
+        
+        Examples:
+            >>> calculate_trip_cost(1000, "base_price * 1.15")  # Add 15% markup
+            >>> calculate_trip_cost(500, "__import__('os').system('whoami')")  # MALICIOUS!
+            >>> calculate_trip_cost(800, "exec('import socket; ...')")  # REMOTE SHELL!
+        
+        Warning:
+            ⚠️ CRITICAL VULNERABILITY - Allows arbitrary code execution via eval()!
+        """
+        try:
+            # VULNERABLE: Using eval() with user input!
+            final_price = eval(calculation_formula, {"__builtins__": {}}, {"base_price": base_price})
+            
+            return {
+                "success": True,
+                "tool": "calculate_trip_cost",
+                "base_price": base_price,
+                "formula": calculation_formula,
+                "final_price": final_price,
+                "vulnerability": "CWE-94: Code Injection via eval()"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "formula": calculation_formula
+            }
+    
+    
+    @app.tool()
+    def apply_discount_code(price: float, discount_code: str) -> dict:
+        """
+        Apply discount code to calculate final price - VULNERABLE!
+        
+        VULNERABILITY: Code Injection via eval() (CWE-94)
+        This tool evaluates discount codes as Python expressions.
+        Attackers can inject malicious code disguised as discount codes.
+        
+        Args:
+            price: Original price in USD
+            discount_code: Discount code/formula (UNVALIDATED!)
+                          Examples: "price * 0.9", "price - 100"
+        
+        Returns:
+            Dictionary with discounted price
+        
+        Examples:
+            >>> apply_discount_code(1000, "price * 0.8")  # 20% off
+            >>> apply_discount_code(500, "__import__('os').listdir('/')")  # MALICIOUS!
+        
+        Warning:
+            ⚠️ CRITICAL VULNERABILITY - Eval-based discount calculation!
+        """
+        try:
+            # VULNERABLE: No validation on discount code!
+            discounted_price = eval(discount_code, {"__builtins__": {}}, {"price": price})
+            discount_amount = price - discounted_price if isinstance(discounted_price, (int, float)) else 0
+            
+            return {
+                "success": True,
+                "tool": "apply_discount_code",
+                "original_price": price,
+                "discount_code": discount_code,
+                "discounted_price": discounted_price,
+                "discount_amount": discount_amount,
+                "vulnerability": "CWE-94: Code Injection via eval()"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "discount_code": discount_code
+            }
+    
+    
+    @app.tool()
+    def generate_booking_confirmation(
+        passenger_name: str,
+        flight_id: str,
+        template: str = "Dear {passenger_name}, your booking for {flight_id} is confirmed."
+    ) -> dict:
+        """
+        Generate booking confirmation message - VULNERABLE!
+        
+        VULNERABILITY: Format String Injection (CWE-134)
+        This tool uses unsafe string formatting that can lead to information disclosure
+        or code execution when combined with other vulnerabilities.
+        
+        Args:
+            passenger_name: Passenger name (UNSANITIZED!)
+            flight_id: Flight ID (UNSANITIZED!)
+            template: Message template with format placeholders (DANGEROUS!)
+        
+        Returns:
+            Dictionary with confirmation message
+        
+        Examples:
+            >>> generate_booking_confirmation("John", "FL001")
+            >>> generate_booking_confirmation("John", "FL001", "{passenger_name.__class__}")  # Info leak!
+            >>> generate_booking_confirmation("{__import__('os').system('ls')}", "FL001")  # Injection!
+        
+        Warning:
+            ⚠️ VULNERABILITY - Unsafe string formatting can leak information!
+        """
+        try:
+            # VULNERABLE: Using eval-based format string
+            # This can leak object attributes and internal information
+            import sys
+            namespace = {
+                "passenger_name": passenger_name,
+                "flight_id": flight_id,
+                "sys": sys,
+                "__builtins__": __builtins__
+            }
+            
+            # DANGEROUS: Format string with access to namespace
+            message = template.format(**namespace)
+            
+            return {
+                "success": True,
+                "tool": "generate_booking_confirmation",
+                "message": message,
+                "passenger_name": passenger_name,
+                "flight_id": flight_id,
+                "vulnerability": "CWE-134: Format String Vulnerability"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "template": template
+            }
+    
+    
+    @app.tool()
+    def search_booking_by_name(passenger_name: str) -> dict:
+        """
+        Search bookings by passenger name - VULNERABLE!
+        
+        VULNERABILITY: SQL Injection (CWE-89)
+        This simulates SQL injection via string concatenation in queries.
+        
+        Args:
+            passenger_name: Passenger name to search (UNVALIDATED!)
+        
+        Returns:
+            Dictionary with search results
+        
+        Examples:
+            >>> search_booking_by_name("John Smith")
+            >>> search_booking_by_name("' OR '1'='1")  # SQL Injection!
+            >>> search_booking_by_name("'; DROP TABLE bookings; --")  # Destructive!
+        
+        Warning:
+            ⚠️ CRITICAL VULNERABILITY - SQL Injection via string concatenation!
+        """
+        import sqlite3
+        try:
+            conn = sqlite3.connect(':memory:')
+            cursor = conn.cursor()
+            
+            # Create sample bookings table
+            cursor.execute('''
+                CREATE TABLE bookings (
+                    id INTEGER PRIMARY KEY,
+                    passenger_name TEXT,
+                    flight_id TEXT,
+                    price REAL,
+                    status TEXT
+                )
+            ''')
+            
+            # Insert sample data
+            cursor.execute("INSERT INTO bookings VALUES (1, 'John Smith', 'FL001', 850.00, 'confirmed')")
+            cursor.execute("INSERT INTO bookings VALUES (2, 'Jane Doe', 'FL002', 1250.00, 'confirmed')")
+            cursor.execute("INSERT INTO bookings VALUES (3, 'Bob Wilson', 'FL003', 1100.00, 'pending')")
+            
+            # VULNERABLE: String concatenation instead of parameterized query!
+            query = f"SELECT * FROM bookings WHERE passenger_name = '{passenger_name}'"
+            
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            columns = [description[0] for description in cursor.description]
+            
+            conn.close()
+            
+            return {
+                "success": True,
+                "tool": "search_booking_by_name",
+                "query": query,
+                "columns": columns,
+                "results": [list(row) for row in rows],
+                "count": len(rows),
+                "vulnerability": "CWE-89: SQL Injection via string concatenation"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "passenger_name": passenger_name
+            }
+    
+    
+    @app.tool()
+    def download_travel_document(document_path: str) -> dict:
+        """
+        Download travel document (ticket, receipt, etc.) - VULNERABLE!
+        
+        VULNERABILITY: Path Traversal (CWE-22)
+        This tool allows downloading files without proper path validation.
+        
+        Args:
+            document_path: Path to travel document (UNVALIDATED!)
+        
+        Returns:
+            Dictionary with document content
+        
+        Examples:
+            >>> download_travel_document("tickets/FL001.pdf")
+            >>> download_travel_document("../../../etc/passwd")  # Path traversal!
+            >>> download_travel_document("C:\\Windows\\System32\\config\\SAM")  # Windows attack!
+        
+        Warning:
+            ⚠️ CRITICAL VULNERABILITY - Path traversal allows reading arbitrary files!
+        """
+        try:
+            # VULNERABLE: No path validation or sanitization!
+            import os
+            full_path = os.path.join("/travel_docs", document_path)
+            
+            # Simulate file read (in reality this would read the file)
+            with open(document_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            return {
+                "success": True,
+                "tool": "download_travel_document",
+                "path": document_path,
+                "full_path": full_path,
+                "content": content[:1000],  # First 1000 chars
+                "vulnerability": "CWE-22: Path Traversal"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "path": document_path
+            }
+    
+    
+    @app.tool()
+    def fetch_destination_info(api_url: str) -> dict:
+        """
+        Fetch destination information from external API - VULNERABLE!
+        
+        VULNERABILITY: Server-Side Request Forgery (SSRF) (CWE-918)
+        This tool makes HTTP requests to user-provided URLs without validation.
+        Attackers can access internal services, scan ports, or exfiltrate data.
+        
+        Args:
+            api_url: URL to fetch destination info from (UNVALIDATED!)
+        
+        Returns:
+            Dictionary with API response
+        
+        Examples:
+            >>> fetch_destination_info("https://api.travel.com/destinations/london")
+            >>> fetch_destination_info("http://localhost:8080/admin")  # Access internal service!
+            >>> fetch_destination_info("http://169.254.169.254/latest/meta-data/")  # AWS metadata!
+            >>> fetch_destination_info("file:///etc/passwd")  # Local file access!
+        
+        Warning:
+            ⚠️ CRITICAL VULNERABILITY - SSRF allows access to internal resources!
+        """
+        try:
+            import requests
+            
+            # VULNERABLE: No URL validation or whitelist!
+            response = requests.get(api_url, timeout=10)
+            
+            return {
+                "success": True,
+                "tool": "fetch_destination_info",
+                "url": api_url,
+                "status_code": response.status_code,
+                "content": response.text[:1000],  # First 1000 chars
+                "headers": dict(response.headers),
+                "vulnerability": "CWE-918: Server-Side Request Forgery (SSRF)"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "url": api_url
+            }
     
     
     @app.tool()
