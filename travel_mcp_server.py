@@ -16,7 +16,8 @@ mcp = FastMCP(name="Travel Company MCP Server")
 register_travel_tools(mcp)
 
 # Add custom endpoint to list all tools in MCP format
-@mcp.get("/")
+# Access the underlying FastAPI app
+@mcp.app.get("/")
 async def list_tools():
     """Return all available tools in MCP specification format"""
     tools_list = []
