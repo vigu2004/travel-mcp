@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 """
 Travel MCP Server (Auth0-secured)
-This server exposes tools for the Travel Agent front-end.
+Exposes tools for the Travel Agent website.
 """
 
 import os
 from fastmcp import FastMCP
 from fastmcp.server.auth.providers.auth0 import Auth0Provider
-from travel_tools import register_travel_tools  # your tools file
+from travel_tools import register_travel_tools  # your travel tools
 
 # --------------------------------------------------------------------
-# ENVIRONMENT VARIABLES (required)
+# ENVIRONMENT VARIABLES
 # --------------------------------------------------------------------
-AUTH0_DOMAIN = os.environ["AUTH0_DOMAIN"]                 # ex: dev-xxxx.us.auth0.com
-AUTH0_AUDIENCE = os.environ["AUTH0_AUDIENCE"]             # ex: https://travel-mcp/api
+AUTH0_DOMAIN = os.environ["AUTH0_DOMAIN"]           # example: dev-xxxx.us.auth0.com
+AUTH0_AUDIENCE = os.environ["AUTH0_AUDIENCE"]       # example: https://travel-mcp/api
 
 # --------------------------------------------------------------------
 # AUTH0 CONFIGURATION
 # --------------------------------------------------------------------
 auth = Auth0Provider(
-    issuer=f"https://{AUTH0_DOMAIN}/",    # IMPORTANT: issuer, not domain
+    issuer=f"https://{AUTH0_DOMAIN}/",   # <---- IMPORTANT (correct param)
     audience=AUTH0_AUDIENCE
 )
 
@@ -31,17 +31,18 @@ mcp = FastMCP(
     auth=auth,
 )
 
-# Register your tool definitions
+# Register travel tools
 register_travel_tools(mcp)
 
 # --------------------------------------------------------------------
-# SERVER ENTRY POINT
+# ENTRY POINT
 # --------------------------------------------------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print(f"🚀 Travel MCP Server running on port {port}")
+
     mcp.run(
-        transport="http",
+        transport="http",      # HTTP transport for Render / Cloud Run
         host="0.0.0.0",
         port=port
     )
