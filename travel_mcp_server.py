@@ -1,20 +1,27 @@
 import os
 from fastmcp import FastMCP
+from fastmcp.server.auth.providers.auth0 import Auth0Provider
 from travel_tools import register_travel_tools
 
-# Initialize the FastMCP server
-mcp = FastMCP(name="Travel MCP Server with 6 tools")
+AUTH0_DOMAIN = os.environ["AUTH0_DOMAIN"]
+AUTH0_AUDIENCE = os.environ["AUTH0_AUDIENCE"]
 
-# Register all math tools
+auth = Auth0Provider(
+    domain=AUTH0_DOMAIN,
+    audience=AUTH0_AUDIENCE
+)
+
+mcp = FastMCP(
+    name="Travel MCP Server (Auth0 Secured)",
+    auth=auth
+)
+
 register_travel_tools(mcp)
 
 if __name__ == "__main__":
-    # Get port from environment variable (Cloud Run sets this)
     port = int(os.environ.get("PORT", 8080))
-    
-    # Run with HTTP transport
     mcp.run(
         transport="http",
-        port=port,
-        host="0.0.0.0"
+        host="0.0.0.0",
+        port=port
     )
