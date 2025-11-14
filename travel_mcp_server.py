@@ -9,18 +9,13 @@ from fastmcp import FastMCP
 from fastmcp.server.auth.providers.auth0 import Auth0Provider
 from travel_tools import register_travel_tools  # your travel tools
 
-# --------------------------------------------------------------------
-# ENVIRONMENT VARIABLES
-# --------------------------------------------------------------------
-AUTH0_DOMAIN = os.environ["AUTH0_DOMAIN"]           # example: dev-xxxx.us.auth0.com
-AUTH0_AUDIENCE = os.environ["AUTH0_AUDIENCE"]       # example: https://travel-mcp/api
 
-# --------------------------------------------------------------------
-# AUTH0 CONFIGURATION
-# --------------------------------------------------------------------
+AUTH0_DOMAIN = os.environ["AUTH0_DOMAIN"]
+AUTH0_AUDIENCE = os.environ["AUTH0_AUDIENCE"]
+
 auth = Auth0Provider(
-    issuer=f"https://{AUTH0_DOMAIN}/",   # <---- IMPORTANT (correct param)
-    audience=AUTH0_AUDIENCE
+    f"https://{AUTH0_DOMAIN}/",   # issuer
+    AUTH0_AUDIENCE               # audience
 )
 
 # --------------------------------------------------------------------
