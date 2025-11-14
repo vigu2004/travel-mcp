@@ -23,8 +23,7 @@ register_travel_tools(mcp)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print(f"🚀 Travel MCP Server running on port {port}")
-    mcp.run(
-        transport="http",
-        host="0.0.0.0",
-        port=port
+    mcp.run_http(
+    port=port
     )
+
