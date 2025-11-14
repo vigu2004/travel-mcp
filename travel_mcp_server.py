@@ -1,32 +1,30 @@
 #!/usr/bin/env python3
-"""
-Travel MCP Server (Auth0-secured)
-"""
 
 import os
 from fastmcp import FastMCP
-from mcp.auth import Auth0Provider     # <---- Correct import for v0.4.x
+from auth_middleware import Auth0JWTMiddleware
 from travel_tools import register_travel_tools
 
-# ENV
-AUTH0_DOMAIN = os.environ["AUTH0_DOMAIN"]
-AUTH0_AUDIENCE = os.environ["AUTH0_AUDIENCE"]  # This must match M2M API audience
+# Load environment variables
+AUTH0_DOMAIN = os.environ["AUTH0_DOMAIN"]        # eg: dev-xxxx.us.auth0.com
+AUTH0_AUDIENCE = os.environ["AUTH0_AUDIENCE"]    # eg: https://travel-mcp/api
 
-# Auth0 provider
-auth = Auth0Provider(
+# Auth Middleware
+auth = Auth0JWTMiddleware(
     domain=AUTH0_DOMAIN,
     audience=AUTH0_AUDIENCE
 )
 
-# MCP Server
+# Create MCP Server
 mcp = FastMCP(
-    name="Travel MCP Server (Auth0 Secured)",
+    name="Travel MCP Server",
     auth=auth
 )
 
 # Register tools
 register_travel_tools(mcp)
 
+# Run server
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print(f"🚀 Travel MCP Server running on port {port}")
