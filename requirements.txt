@@ -1,6 +1,4 @@
-fastmcp==0.1.0
-mcp==1.21.1
+fastmcp
 python-dotenv
-pyjwt
 requests
 uvicorn
