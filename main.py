@@ -30,10 +30,8 @@ async def root():
 # ----------------------------------------------------------
 # 3. Mount MCP HTTP server under /mcp
 # ----------------------------------------------------------
-# This gives you:
-# /mcp/.well-known/mcp/manifest.json
-# /mcp/  (SSE streaming endpoint)
-app.mount("/mcp", mcp.http_app(path="/mcp"))
+# Correct version (NO path argument)
+app.mount("/mcp", mcp.http_app())
 
 # ----------------------------------------------------------
 # 4. Uvicorn entrypoint for local + Render
