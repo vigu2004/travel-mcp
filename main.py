@@ -1,46 +1,19 @@
 #!/usr/bin/env python3
-
 import os
-from fastapi import FastAPI
-import uvicorn
-
 from fastmcp import FastMCP
 from travel_tools import register_travel_tools
 
-# ----------------------------------------------------------
-# 1. Create MCP server
-# ----------------------------------------------------------
-mcp = FastMCP(name="Travel MCP Server")
+# Create MCP server
+mcp = FastMCP("Travel MCP Server")
+
+# Register tools
 register_travel_tools(mcp)
 
-# ----------------------------------------------------------
-# 2. Create FastAPI app
-# ----------------------------------------------------------
-app = FastAPI()
-
-# Root health check — so Render sees service alive
-@app.get("/")
-async def root():
-    return {
-        "status": "ok",
-        "message": "Travel MCP Server running",
-        "mcp_endpoint": "/mcp"
-    }
-
-# ----------------------------------------------------------
-# 3. Mount MCP HTTP server under /mcp
-# ----------------------------------------------------------
-# Correct version (NO path argument)
-app.mount("/mcp", mcp.http_app())
-
-# ----------------------------------------------------------
-# 4. Uvicorn entrypoint for local + Render
-# ----------------------------------------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    uvicorn.run(
-        "main:app",
+    port = int(os.environ.get("PORT", 8000))
+    mcp.run(
+        transport="http",
         host="0.0.0.0",
         port=port,
-        reload=False,
+        path="/mcp"
     )
