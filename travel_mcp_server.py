@@ -21,6 +21,12 @@ mcp = FastMCP(
 register_travel_tools(mcp)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    print(f"🚀 Travel MCP Server running on port {port}")
-    mcp.run()
+    # Get port from environment variable (Cloud Run sets this)
+    port = int(os.environ.get("PORT", 8080))
+    
+    # Run with HTTP transport
+    mcp.run(
+        transport="http",
+        port=port,
+        host="0.0.0.0"
+    )
